@@ -1,5 +1,5 @@
 from flask import Flask, jsonify
-from modbus_reader import read_meter
+import modbus_reader
 
 app = Flask(__name__)
 
@@ -9,7 +9,7 @@ def home():
 
 @app.route("/meter/<int:slave_id>")
 def meter(slave_id):
-    data = read_meter(slave_id)
+    data = modbus_reader.read_meter(slave_id)
     return jsonify(data)
 
 if __name__ == "__main__":
