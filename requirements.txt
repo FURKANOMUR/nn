@@ -1,7 +1,4 @@
 fastapi
 uvicorn
-pydantic
-psycopg2-binary
 pymodbus
 pyserial
-requests
