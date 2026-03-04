@@ -1,65 +1,19 @@
-import os
-import random
-from datetime import datetime
+from fastapi import FastAPI, HTTPException
+import modbus_reader
 
-from pymodbus.client import ModbusSerialClient
+app = FastAPI(title="ENTES Energy Platform")
 
-# Railway'de cihaz olmayacağı için varsayılan SIMULATION=1
-SIMULATION = os.getenv("SIMULATION", "1") == "1"
+@app.get("/")
+def root():
+    return {"status": "ENTES Energy Platform running"}
 
-# Lokal PC'de (senin) COM port
-PORT = os.getenv("MODBUS_PORT", "COM5")
-BAUDRATE = int(os.getenv("MODBUS_BAUD", "19200"))
+@app.get("/health")
+def health():
+    return {"ok": True, "simulation": modbus_reader.SIMULATION}
 
-
-def _fake(slave_id: int):
-    # Simülasyon değerleri
-    return {
-        "ts": datetime.utcnow().isoformat() + "Z",
-        "meter_id": slave_id,
-        "mode": "simulation",
-        "V1": round(random.uniform(215, 235), 1),
-        "V2": round(random.uniform(215, 235), 1),
-        "V3": round(random.uniform(215, 235), 1),
-        "I1": round(random.uniform(0, 50), 2),
-        "I2": round(random.uniform(0, 50), 2),
-        "I3": round(random.uniform(0, 50), 2),
-        "P_total": round(random.uniform(0, 25), 3),
-        "kWh_total": round(random.uniform(1000, 50000), 2),
-    }
-
-
-def read_meter(slave_id: int):
-    if SIMULATION:
-        return _fake(slave_id)
-
-    client = ModbusSerialClient(
-        port=PORT,
-        baudrate=BAUDRATE,
-        parity="N",
-        stopbits=1,
-        bytesize=8,
-        timeout=1,
-    )
-
-    if not client.connect():
-        return {
-            "ts": datetime.utcnow().isoformat() + "Z",
-            "meter_id": slave_id,
-            "mode": "real",
-            "error": f"Modbus connect failed (PORT={PORT}, BAUDRATE={BAUDRATE})",
-        }
-
+@app.get("/meter/{slave_id}")
+def meter(slave_id: int):
     try:
-        # ⚠️ Bu adresler örnektir. Senin ENTES modeline göre register adreslerini netleştireceğiz.
-        # Şimdilik hata vermeden çalışması için "okuma denemesi" yapıyoruz:
-        r = client.read_input_registers(0x0000, 2, slave=slave_id)
-
-        return {
-            "ts": datetime.utcnow().isoformat() + "Z",
-            "meter_id": slave_id,
-            "mode": "real",
-            "raw": getattr(r, "registers", None),
-        }
-    finally:
-        client.close()
+        return modbus_reader.read_meter(slave_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
